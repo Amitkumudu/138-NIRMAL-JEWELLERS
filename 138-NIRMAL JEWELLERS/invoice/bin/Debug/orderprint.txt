@@ -1,0 +1,306 @@
+   Public Sub orderprint(ByVal isView As Boolean)
+        Try
+            DumbBill = False
+            If MyAppMode = 2 Then
+                'If picdouble.Visible Then
+                DumbBill = True
+            End If
+            crearetable()
+
+            Dim order As Boolean = True
+            Dim customerid As Integer
+            Dim temp As New DataTable
+            Dim customer, company, adv_det, metname, purity As String
+            Dim ival, rate As Double
+            Dim title, datte, staff, timee, paymode As String
+            title = "" : datte = "" : staff = "" : timee = "" : paymode = "" : purity = ""
+
+            customer = "" : company = "" : adv_det = "" : metname = ""
+            Dim ds As New DataSet
+            Dim sdr, cdr, cmdr, advdr As DataRow
+            Dim metalName As String = ""
+            ds = jClass.Fill_Dataset("Select o_key,o_date,o_staff,ordtime,o_party,o_rate,metaltype.name as metalname,o_totc_adv,o_totg_adv,purity.name as  purity,o_del_dt,o_type,o_name,o_add1,o_add2,o_add3,o_place,o_phone from ord_main left join metaltype on metaltype.id=ord_main.o_metaltype left join purity on purity.id= ord_main.o_purity where o_key='" & txtOrderno.Text & "'", "ord_main")
+            If ds.Tables("ord_main").Rows.Count = 0 Then
+                MsgBox("Order doesnot exist", MsgBoxStyle.Exclamation, appCaption)
+                Exit Sub
+            End If
+            Dim cashadvance, metaladvance As Double
+            Dim deldates As String = ""
+            If ds.Tables("ord_main").Rows.Count > 0 Then
+                sdr = ds.Tables("ord_main").Rows(0)
+                title = sdr("o_key") & ""
+                datte = cnvDateFormat(sdr("o_date"))
+                staff = sdr("o_staff") & ""
+                timee = customDateFormat(sdr("o_del_dt") & "")
+                customerid = sdr("o_party") & ""
+                cashadvance = CDouble(sdr("o_totc_adv") & "")
+                If ConverttoOrderval = False Then
+                    metaladvance = CDouble(sdr("o_totg_adv") & "")
+                End If
+
+                rate = CDouble(sdr("o_rate"))
+                metalName = sdr("metalname") & ""
+                purity = sdr("purity") & ""
+                deldates = sdr("o_del_dt") & ""
+            End If
+            Dim qry As String = ""
+            qry = "select metaltype.name,order_advance.metaltype,order_advance.purity,order_advance.weight_amt,order_advance.note,order_advance.tdate"
+            qry += ",order_advance.lesswt,order_advance.irate,order_advance.ivalue, order_advance.netwt,order_advance.paymode,order_advance.payno,order_advance.rectno from order_advance "
+            qry += "left join metaltype on metaltype.id=order_advance.metaltype where order_advance.orderno='" & txtOrderno.Text & "'"
+            ds = jClass.Fill_Dataset(qry, "order_advance")
+            adv_det = ""
+            If ds.Tables("order_advance").Rows.Count > 0 Then
+                For Each advdr In ds.Tables("order_advance").Rows
+                    If advdr("metaltype") = 0 Then
+                        Dim amount = FormatNumber(CDouble(advdr("ivalue") & ""), 0).PadLeft(10)
+                        paymode += (advdr("paymode") & "") & "  " & (advdr("payno") & "") & "  Rs " & Replace(FormatNumber(amount, 2), ",", "").ToString.Replace(",", "")
+                        If advdr("tdate") & "" <> String.Empty Then paymode += Space(2) & "on " & customDateFormat(advdr("tdate"))
+                        If CDouble(advdr("irate") & "") > 0 Then paymode += " @" & FormatNumber(CDouble(advdr("irate") & ""), 2)
+                        If Trim(advdr("rectno") & "") <> String.Empty Then
+                            paymode += " - " & Trim(advdr("rectno") & "")
+                        End If
+                        paymode += Chr(13)
+                        ival += CDouble(advdr("ivalue") & "")
+                    Else
+                        adv_det += Fix_len(Trim(advdr("note") & ""), 5, " ")
+                        adv_det += "Wt:" & FormatNumber(CDouble((advdr("weight_amt") & "")), 3) & "@" & FormatNumber(CDouble((advdr("purity") & ""))) & "%"
+                        adv_det += " Eq=" & FormatNumber(CDouble((advdr("netwt") & "")), 3)
+                        If ConverttoOrderval Then
+                            adv_det += " Eq=" & FormatNumber(CDouble((advdr("netwt") & "")), 3)
+                            adv_det += "@" & FormatNumber(CDouble(advdr("irate") & ""), 2).Replace(",", "").PadLeft(6)
+                            adv_det += "=" & FormatNumber(CDouble(advdr("ivalue") & ""), 2).PadLeft(6) & Chr(13)
+                            metaladvance += CDouble(advdr("ivalue") & "")
+                        Else
+                            adv_det += " Eq=" & FormatNumber(CDouble((advdr("netwt") & "")), 3)
+                            If Trim(advdr("rectno") & "") <> String.Empty Then
+                                adv_det += " - " & Trim(advdr("rectno") & "")
+                            End If
+                            adv_det += Chr(13)
+                        End If
+                    End If
+                Next
+            End If
+            qry = "  select order_details.orderno,order_details.slno,metaltype.name as metal,order_details.description as Descp,"
+            qry += " itemtype.name as item ,design.name as design,order_details.mc,order_details.beedsvalue,itemtype.code as code,"
+            qry += " order_details.size, beeds.name as beedstype ,purity.name as purity,order_details.pcs,order_details.weight ,"
+            qry += " order_details.o_value,order_details.beedspcs,order_details.beedsct from order_details"
+            qry += " left join metaltype on metaltype.id= order_details.metaltype "
+            qry += " left join itemtype on order_details.item=itemtype.id left join design on order_details.design= design.id"
+            qry += " left join purity on order_details.purity=purity.id"
+            qry += " left join  beeds on order_details.beedstype=beeds.id where order_details.orderno='" & txtOrderno.Text & "' order by order_details.slno"
+            Dim dso As New DataSet
+            Dim dr As DataRow
+            dso = jClass.Fill_Dataset(qry, "order_details")
+            Dim dss As DataRow
+            For Each dr In dso.Tables("order_details").Rows
+                dss = Dst.NewRow
+                dss.Item("slno") = CDouble(dr("slno") & "")
+                dss.Item("metal") = dr("metal") & ""
+                dss.Item("item") = dr("item") & ""
+                dss.Item("code") = dr("code") & ""
+                dss.Item("design") = Trim(dr("design") & "")
+                dss.Item("descp") = dr("descp") & ""
+                dss.Item("note") = dr("item") & "" & " - " & Trim(dr("design") & "") & "  " & dr("descp") & ""
+                dss.Item("purity") = dr("purity") & ""
+                dss.Item("gross") = dr("weight") & ""
+                dss.Item("size") = (dr("size")) & ""
+                dss.Item("pcs") = dr("pcs")
+                dss.Item("mc") = dr("mc")
+                dss.Item("b_ct") = dr("beedsvalue")
+                dss.Item("ivalue") = dr("o_value")
+############### changes '###############
+                '############### to identify the order item has beeds '###############
+                If dr("beedstype") & "" <> String.Empty Then
+                    dss.Item("beedname") = "%"
+                End If
+                Dst.Rows.Add(dss)
+                'To add the beeds details into the report
+                If dr("beedstype") & "" <> String.Empty Then
+                    dss = Dst.NewRow
+                    dss.Item("beedname") = dr("beedstype") & "" & " PCs " & dr("beedspcs") & "" & " CT " & dr("beedsct") & ""
+                    dss.Item("slno") = 0 ' in crystal report if slno=0 the the field is suppress and identified as beeds detail
+                    Dst.Rows.Add(dss)
+                End If
+############### change END '###############
+            Next
+            ds = jClass.Fill_Dataset("select * from customer where  id=" & customerid & "", "customer")
+            Dim custumname As String = ""
+            If ds.Tables("customer").Rows.Count > 0 Then
+                cdr = ds.Tables("customer").Rows(0)
+                If cdr("address") & "" <> String.Empty Then
+                    If Len(customer) > 0 Then customer += Chr(13)
+                    customer = cdr("address") & ""
+                End If
+                If cdr("address1") & "" <> String.Empty Then
+                    If Len(customer) > 0 Then customer += Chr(13)
+                    customer += cdr("address1") & ""
+                End If
+                If cdr("address2") & "" <> String.Empty Then
+                    If Len(customer) > 0 Then customer += Chr(13)
+                    customer += cdr("address2") & ""
+                End If
+                If cdr("place") & "" <> String.Empty Then
+                    If Len(customer) > 0 Then customer += Chr(13)
+                    customer += cdr("place") & ""
+                End If
+                If cdr("pincode") & "" <> String.Empty Then
+                    customer += "-" & cdr("pincode")
+                End If
+                If DemoReqd Then
+                    If cdr("phone") & "" <> String.Empty Then
+                        If Len(customer) > 0 Then customer += Chr(13)
+                        customer += "Ph: " & cdr("phone") & ""
+                    End If
+                    If cdr("mobileno") & "" <> String.Empty Then
+                        If Len(customer) > 0 Then
+                            customer += Chr(13)
+                            customer += " Mob: " & cdr("mobileno") & ""
+                        End If
+                    End If
+                End If
+                custumname = cdr("name") & ""
+            Else
+                custumname = sdr("o_name") & ""
+                If sdr("o_add1") & "" <> String.Empty Then
+                    If Len(customer) > 0 Then customer += Chr(13)
+                    customer = sdr("o_add1") & ""
+                End If
+                If sdr("o_add2") & "" <> String.Empty Then
+                    If Len(customer) > 0 Then customer += Chr(13)
+                    customer += sdr("o_add2") & ""
+                End If
+                If sdr("o_add3") & "" <> String.Empty Then
+                    If Len(customer) > 0 Then customer += Chr(13)
+                    customer += sdr("o_add3") & ""
+                End If
+                If sdr("o_place") & "" <> String.Empty Then
+                    If Len(customer) > 0 Then customer += Chr(13)
+                    customer += sdr("o_place") & ""
+                End If
+                If sdr("o_phone") & "" <> String.Empty Then
+                    customer += "Phone:" & sdr("o_phone")
+                End If
+            End If
+            ds = jClass.Fill_Dataset("select * from company", "company")
+            cmdr = ds.Tables("company").Rows(0)
+            company = FullCompanyAdd
+            If MyAppMode = 2 And hideadd Then
+                customer = " "
+            End If
+            Dim Dt_dr As DataRow
+            Dt_dr = Dt.NewRow
+            If IsDate(deldates) Then
+                '  deldates = "Delivery Date: " & (customDateFormat(deldates))
+            End If
+            Dt_dr.Item("customer") = customer '& vbCrLf & deldates
+            Dt_dr.Item("o_key") = title
+            Dt_dr.Item("K_date") = cnvDateFormat(datte)
+            Dt_dr.Item("K_time") = timee
+            Dt_dr.Item("staff") = staff
+            Dt_dr.Item("r_footer") = company
+            Dt_dr.Item("bus_hrs") = cmdr("bus_hrs")
+            Dt_dr.Item("adv_detail") = adv_det
+            Dt_dr.Item("com_addr") = metalName
+            Dt_dr.Item("cash_adv") = ival
+            Dt_dr.Item("paymode") = paymode
+            Dt_dr.Item("note") = purity
+            Dt_dr.Item("bill_recv") = cashadvance
+            Dt_dr.Item("adjustment") = metaladvance
+            Dt_dr.Item("companyname") = Company_Name
+            If GetOFBookdetails(Trim(sdr("o_type") & "")) = "BOOKED" Then
+                Dt_dr.Item("ordernote") = ""
+            Else
+                Dt_dr.Item("ordernote") = order_note
+            End If
+            Dt_dr.Item("report_note") = Report_Note
+
+
+            If MyAppMode = 2 And hideadd Then
+                customer = " "
+            End If
+            Dt_dr.Item("name") = custumname
+            Dt_dr.Item("rate") = rate
+            Dt.Rows.Add(Dt_dr)
+            Dim rpt As ReportDocument
+            'rpt = New RptOrderP
+            rpt = New invoice.rajRptOrdernewP 'RptOrderPrntbarcode  'RptOrdernewP
+            Dim dsr As New DataSet
+            dsr.Tables.Add(Dst.Copy)
+            dsr.Tables.Add(temp.Copy)
+            dsr.Tables.Add(Dt.Copy)
+            Try
+                For i As Integer = 0 To 1
+                    Dim objText1 As CrystalDecisions.CrystalReports.Engine.TextObject
+                    objText1 = rpt.Subreports(i).ReportDefinition.Sections(2).ReportObjects("txtmetal")
+                    Dim objText2 As CrystalDecisions.CrystalReports.Engine.TextObject
+                    objText2 = rpt.Subreports(i).ReportDefinition.Sections(2).ReportObjects("txtmetalvalue")
+                    rpt.Subreports(i).ReportDefinition.Sections(2).ReportObjects("txtmetalvalue").ObjectFormat.HorizontalAlignment = Alignment.RightAlign
+                    If ConverttoOrderval Then
+                        If metaladvance = 0 Then
+                            rpt.Subreports(i).ReportDefinition.Sections(2).ReportObjects("txtmetal").ObjectFormat.EnableSuppress = True
+                        Else
+                            objText2.Text = Math.Round(metaladvance, 0)
+                        End If
+                    Else
+                        If metaladvance = 0 Then
+                            rpt.Subreports(i).ReportDefinition.Sections(2).ReportObjects("txtmetal").ObjectFormat.EnableSuppress = True
+                        Else
+                            objText2.Text = FormatNumber(Math.Round(metaladvance, 3), 3)
+                        End If
+                    End If
+                Next
+            Catch ex As Exception
+            End Try
+            temp = jClass.Fill_Table("Select * from company", "company")
+            dsr.Tables.Add(temp.Copy)
+            '
+            'Try
+            Dim crObject As ReportDefinition
+            Dim crTextObject As TextObject
+            Try
+                crObject = rpt.Subreports(0).ReportDefinition
+                crTextObject = CType(crObject.ReportObjects.Item("txtbooktype"), TextObject)
+                crTextObject.Text = GetOrderStatus(Trim(sdr("o_type") & "")) & " "
+
+                crObject = rpt.Subreports(1).ReportDefinition
+                crTextObject = CType(crObject.ReportObjects.Item("txtbooktype"), TextObject)
+                crTextObject.Text = GetOrderStatus(Trim(sdr("o_type") & "")) & " "
+            Catch ex As Exception
+            End Try
+
+            'Catch ex As Exception
+            'End Try
+            rpt.Subreports(0).Database.Dispose()
+            rpt.Subreports(0).SetDataSource(dsr)
+            rpt.Subreports(1).SetDataSource(dsr)
+            rpt.Subreports(1).Database.Dispose()
+            If isView Then
+                Dim FrmPr1 As New FrmPreview
+                FrmPr1.CRV1.ReportSource = rpt
+                FrmPr1.MdiParent = Me.MdiParent
+                FrmPr1.Show()
+            Else
+                If isSaveClicked Then
+                Else
+                    If PrintServerMode = "Y" Then
+                        Dim pname As String = ""
+                        pname = GetAutoPrinterName(cmbStaff.Text)
+                        If Trim(pname) <> String.Empty Then
+                            ServerPrinter = pname
+                        End If
+                    End If
+                End If
+                If Trim(ServerPrinter) <> String.Empty Then
+                    rpt.PrintOptions.PrinterName = ServerPrinter
+                    rpt.PrintToPrinter(1, False, 1, 5)
+                Else
+                    CRORDER.ReportSource = rpt
+                    CRORDER.PrintReport()
+                End If
+                'CRORDER.ReportSource = rpt
+                'CRORDER.PrintReport()
+            End If
+        Catch ex As Exception
+            MsgBox(ex.Message, MsgBoxStyle.Exclamation, appCaption)
+        End Try
+    End Sub

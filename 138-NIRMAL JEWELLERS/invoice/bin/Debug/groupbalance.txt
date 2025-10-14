@@ -1,0 +1,260 @@
+Imports CrystalDecisions.CrystalReports.Engine
+Imports CrystalDecisions.Shared
+Public Class frmGroupBalance
+    Dim tblgroup As New DataTable
+    Dim DS As New DataSet 'Create a Data Source object
+    Dim scheme, drClass As New clsFunction 'for creating derived class object
+
+    'On form loading
+    Private Sub frmGroupBalance_Load(ByVal sender As System.Object, ByVal e As System.EventArgs) Handles MyBase.Load
+        'TODO: This line of code loads data into the 'datasetReport.dtGroupBalance' table. You can move, or remove it, as needed.
+        ' Me.dtGroupBalanceTableAdapter.Fill(Me.datasetReport.dtGroupBalance)
+        Try
+            Me.Show()
+            drClass.FillScheme(cboScheme)
+            Application.DoEvents()
+            cboScheme.Focus()
+        Catch ex As Exception
+            MsgBox(ex.Message, MsgBoxStyle.Exclamation, appCaption)
+        End Try
+        cmbOP.Text = "OPEN"
+    End Sub
+   
+
+    ''Run the report
+    'Private Sub btnRunReport_Click(ByVal sender As System.Object, ByVal e As System.EventArgs) Handles btnRunReport.Click
+    '    Try
+    '        '  dtGroupBalanceBindingSource.Dispose()
+    '        'dtGroupBalanceBindingSource.d
+    '        If cboScheme.SelectedIndex = -1 Then
+    '            DS = drClass.Fill_Dataset("Select v_groups.code,v_groups.scheme_name,v_groups.no_of_members,v_groups.exist,if(v_members.adjust,v_members.adjust,0) as adjust,if(v_members.winner,v_members.winner,0) as winner,v_groups.balance,v_groups.start_no,v_groups.end_no,if(v_groups.closed='0' or (v_groups.closed) is null,'OPEN','CLOSED') as status from v_groups LEFT OUTER JOIN v_members ON v_groups.code=v_members.mgroup GROUP BY v_groups.code", "dtGroupBalance")
+    '        Else
+    '            DS = drClass.Fill_Dataset("Select v_groups.code,v_groups.scheme_name,v_groups.no_of_members,v_groups.exist,if(v_members.adjust,v_members.adjust,0) as adjust,if(v_members.winner,v_members.winner,0) as winner,v_groups.balance,v_groups.start_no,v_groups.end_no,if(v_groups.closed='0' or (v_groups.closed) is null,'OPEN','CLOSED') as status from v_groups LEFT OUTER JOIN v_members ON v_groups.code=v_members.mgroup WHERE v_groups.scheme_name='" & cboScheme.Text & "' GROUP BY v_groups.code", "dtGroupBalance")
+    '        End If
+    '        dtGroupBalanceBindingSource.DataSource = DS
+    '        rptvGroupBalance.RefreshReport()
+    '    Catch ex As Exception
+    '        MsgBox(ex.Message, MsgBoxStyle.Exclamation, appCaption)
+    '    End Try
+    'End Sub
+
+    ''Refresh the report
+    'Private Sub rptvGroupBalance_ReportRefresh(ByVal sender As Object, ByVal e As System.ComponentModel.CancelEventArgs) Handles rptvGroupBalance.ReportRefresh
+    '    Try
+    '        btnRunReport.PerformClick()
+    '    Catch ex As Exception
+    '        MsgBox(ex.Message, MsgBoxStyle.Exclamation, appCaption)
+    '    End Try
+    'End Sub
+
+    'For focusing to next control
+    Private Sub cboScheme_KeyPress(ByVal sender As Object, ByVal e As System.Windows.Forms.KeyPressEventArgs) Handles cboScheme.KeyPress
+        scheme.NextFocus(Asc(e.KeyChar), btnRunReport)
+    End Sub
+    Private Sub frmGroupBalance_Resize(ByVal sender As Object, ByVal e As System.EventArgs) Handles Me.Resize
+        Crv.Height = Me.Height - 100
+        Crv.Width = Me.Width - 50
+
+    End Sub
+    Private Sub btnRunReport_Click(ByVal sender As System.Object, ByVal e As System.EventArgs) Handles btnRunReport.Click
+        Dim tblg, tbl As New DataTable
+        Dim qry As String
+        CreateGroup()
+        CreateTable()
+        frmshowProgress.Show()
+        Application.DoEvents()
+        'qry = "select groups.code,groups.no_of_members,scheme.scheme_name  as scheme,start_no,end_no, if(closed=1,'Closed','Open') as status  "
+        'qry += " from groups "
+        'qry += " join scheme on groups.scheme_id=scheme.scheme_id"
+        'If cboScheme.SelectedIndex <> -1 Then
+        '    qry += " where groups.scheme_id= " & Val(cboScheme.SelectedValue) & ""
+        'End If
+        '' qry += " and year(groups.created_date)='" & Year(DateToday) & "' and year(groups.created_date)='" & Year(DateToday) - 1 & "' order by code"
+        'For Each rrw In tbl.Rows
+        '    qry = " select sum(if(members.info like 'A%',1,0)) as adjust, 0 as ADJWINNER,count(DISTINCT(members.member_id)) as exits"
+        '    qry += ",count(DISTINCT(winner.member_no)) as winner  "
+        '    qry += " from members left join winner on winner.member_no = members.member_id"
+        '    'qry += " LEFT join member_ledger on member_ledger.member_id=members.member_id " 'and (members.info IS NULL OR TRIM(LEFT(members.info,1))=''"
+        '    qry += " WHERE members.mgroup ='" & rrw("code") & "" & "'"
+        '    qry += " group by members.mgroup "
+        qry = "select groups.code,groups.no_of_members,scheme.scheme_name  as scheme,start_no,end_no, if(closed=1,'Closed','Open') as status  ,groups.drawpay,"
+        qry += " sum(if(members.info like 'A%',1,0)) as adjust, 0 as ADJWINNER,count(DISTINCT(members.member_id)) as exits,sum(if(members.status ='C',1,0)) as canceled,"
+        qry += " count(DISTINCT(winner.member_no)) as winner  from members "
+        qry += " join groups on members.mgroup = groups.code"
+        qry += " left join winner on winner.member_no = members.member_id and (isbonus is null or isbonus=0)"
+        qry += " join scheme on groups.scheme_id=scheme.scheme_id"
+        'Dim flt As String = ""
+        'If cboScheme.SelectedIndex <> -1 Then
+        '    flt += " groups.scheme_id= " & Val(cboScheme.SelectedValue) & ""
+        'End If
+        'If cmbOP.Text = "OPEN" Then
+        '    If Len(flt) > 0 Then flt += " and "
+        '    flt += " closed=0 "
+        'ElseIf cmbOP.Text = "CLOSED" Then
+        '    If Len(flt) > 0 Then flt += " and "
+        '    flt += " closed=1 "
+        'Else
+
+        'End If
+        'If Len(flt) > 0 Then
+        '    qry += " where " & flt
+        'End If
+        '  qry += " AND  MGROUP LIKE '%ABH%'"
+        qry += " group by members.mgroup "
+        Dim tblgs As New DataTable
+        qry = "select * from group where "
+        If cmbOP.Text = "OPEN" Then
+            qry += " closed=0 "
+        Else
+            qry += " and a.status='Closed' "
+        End If
+        qry = "select a.code,a.no_of_members,a.scheme,a.start_no,a.end_no,a.status,a.drawpay,b.adjust,b.canceled,b.exits,b.balance,b.Adjbalance,b.gold_balance,b.ADJgold_balance,a.scheme_id,a.winner from "
+        qry += " (select groups.code,groups.no_of_members,scheme.scheme_name  as scheme,start_no,end_no, if(closed=1,'Closed','Open') as status  ,"
+        qry += " groups.drawpay,groups.scheme_id,0 as winner from groups join scheme on groups.scheme_id=scheme.scheme_id ) as a,"
+        qry += " (select members.mgroup as mgroup,sum(if(members.info like 'A%',1,0)) as adjust, 0 as ADJWINNER,count(DISTINCT(members.member_id)) as exits,"
+        qry += " sum(if(members.status ='C',1,0)) as canceled,sum(if(member_ledger.note='R',member_ledger.amount,0)) as balance,sum(if(member_ledger.note='R',member_ledger.gross_wt,0)) as gold_balance"
+        qry += " ,sum(if(member_ledger.note<>'R',member_ledger.amount,0)) as Adjbalance,sum(if(member_ledger.note<>'R',member_ledger.gross_wt,0)) as ADJgold_balance "
+        qry += " from members join groups on members.mgroup= groups.code "
+        qry += " left join member_ledger on member_ledger.member_id=members.member_id group by mgroup) as b"
+        qry += " where(a.code = b.mgroup) "
+        Dim flt As String = ""
+        If cboScheme.SelectedIndex <> -1 Then
+            flt += " and a.scheme_id= " & Val(cboScheme.SelectedValue) & ""
+        End If
+        If cmbOP.Text = "OPEN" Then
+            flt += " and a.status='Open' "
+        ElseIf cmbOP.Text = "CLOSED" Then
+            flt += " and a.status='Closed' "
+        Else
+        End If
+        qry += flt
+        Dim drw, rrw As DataRow
+        tbl = scheme.Fill_Table(qry, "group")
+        Dim tbll As New DataTable
+        tbll = tbl.Copy
+        For Each rrw In tbl.Rows
+            Dim mrw As DataRow
+            mrw = tbll.Rows(0)
+            drw = tblgroup.NewRow
+            drw.Item("scheme") = rrw("scheme") & ""
+            drw.Item("status") = rrw("status") & ""
+            drw.Item("group") = rrw("code") & ""
+            drw.Item("startno") = Val(rrw("start_no") & "")
+            drw.Item("endno") = Val(rrw("end_no") & "")
+            drw.Item("total") = Val(rrw("no_of_members") & "")
+            Dim ADJUSTWINNER As Integer = 0
+            'ADJUSTWINNER = scheme.ExecuteQueriess(("SELECT COUNT(MEMBER_NO) FROM winner WHERE MEMBER_NO  IN (SELECT MEMBER_ID FROM members WHERE INFO  LIKE '%a%' AND MGROUP='" & (rrw("code") & "") & "') and (isbonus=0 or isbonus is null)"))
+            Dim tb_t As New DataTable
+            'qry = "select count(a.memno) as ADJUSTWINNER,count(b.memno) as winner from (SELECT COUNT(MEMBER_NO) as memno FROM winner "
+            'qry += " WHERE MEMBER_NO  IN (SELECT MEMBER_ID FROM members WHERE INFO  LIKE '%a%' AND MGROUP='" & (rrw("code") & "") & "') and (isbonus=0 or isbonus is null)) as a,"
+            'qry += " (SELECT COUNT(MEMBER_NO) as memno FROM winner "
+            'qry += " WHERE MEMBER_NO  IN (SELECT MEMBER_ID FROM members WHERE MGROUP='" & (rrw("code") & "") & "') and (isbonus=0 or isbonus is null)) as b"
+            'tb_t = scheme.Fill_Table(qry, "winn")
+            Dim winner As Double = 0
+            ADJUSTWINNER = scheme.ExecuteQueriess(("SELECT COUNT(MEMBER_NO) FROM winner WHERE MEMBER_NO  IN (SELECT MEMBER_ID FROM members WHERE INFO  LIKE '%a%' AND MGROUP='" & (rrw("code") & "") & "') and (isbonus=0 or isbonus is null)"))
+            winner = scheme.ExecuteQueriess(("SELECT COUNT(MEMBER_NO) FROM winner WHERE MEMBER_NO  IN (SELECT MEMBER_ID FROM members WHERE MGROUP='" & (rrw("code") & "") & "') and (isbonus=0 or isbonus is null)"))
+            If tb_t.Rows.Count > 0 Then
+                '    winner = CDouble(tb_t.Rows(0).Item("winner") & "")
+                '    ADJUSTWINNER = CDouble(tb_t.Rows(0).Item("ADJUSTWINNER") & "")
+            End If
+            drw.Item("winner") = winner 'Val(rrw("winner") & "")
+
+            drw.Item("adjusted") = CDouble(rrw("adjust") & "") ' + -Val(rrw("ADJWINNER") & "")
+            '  Dim tblgroups, tblmemb As New DataTable
+            '  tblgroups = scheme.Fill_Table("select member_id from members where mgroup='" & rrw("code") & "" & "'", "group")
+            Dim gold, cash As Double
+            ' For Each rrrrw As DataRow In tblgroups.Rows
+            'qry = " select sum(if(member_ledger.note='R',member_ledger.amount,0)) as balance,sum(if(member_ledger.note='R',member_ledger.gross_wt,0)) as gold_balance"
+            'qry += " ,sum(if(member_ledger.note<>'R',member_ledger.amount,0)) as Adjbalance,sum(if(member_ledger.note<>'R',member_ledger.gross_wt,0)) as ADJgold_balance"
+            'qry += " from  member_ledger  join members on member_ledger.member_id=members.member_id join groups on members.mgroup=groups.code where groups.code='" & rrw("code") & "" & "'group by mgroup " 'where member_id =" & rrrrw("member_id") & " group by member_id"
+            'Dim tblmemb As New DataTable
+            'tblmemb = scheme.Fill_Table(qry, "member")
+            'If tblmemb.Rows.Count <> 0 Then
+            gold = CDouble(rrw("gold_balance") & "") - CDouble(rrw("ADJgold_balance") & "")
+            cash = CDouble(rrw("balance") & "") - CDouble(rrw("Adjbalance") & "")
+            'End If
+            'qry = " select sum(winner.amount) as balance,sum(winner.gold) as gold_balance"
+            'qry += " from  winner join members on winner.member_no=members.member_id join groups on members.mgroup=groups.code where groups.code='" & rrw("code") & "" & "'group by mgroup " 'where member_id =" & rrrrw("member_id") & " group by member_id"
+            'tblmemb = scheme.Fill_Table(qry, "member")
+            'If tblmemb.Rows.Count <> 0 Then
+            gold = gold + CDouble(rrw("gold_balance") & "")
+            cash = cash + CDouble(rrw("balance") & "")
+            'End If
+            drw.Item("gold") = gold
+            drw.Item("balance") = cash
+            drw.Item("canceled") = CDouble(rrw("canceled") & "")
+            If Val(rrw("drawpay") & "") = 1 Then
+                drw.Item("exsiting") = CDouble(rrw("exits") & "") - CDouble(rrw("adjust") & "") '"'+ ADJUSTWINNER - Val(rrw("canceled") & "")
+            Else
+                drw.Item("exsiting") = CDouble(rrw("exits") & "") - winner - CDouble(rrw("adjust") & "") + ADJUSTWINNER - CDouble(rrw("canceled") & "")
+            End If
+            tblgroup.Rows.Add(drw)
+            Application.DoEvents()
+        Next
+        Dim rpt As New ReportDocument
+        rpt = New crtgroupbalance
+        drw = tblcompany.NewRow
+        drw.Item("companyname") = C_NAME & "," & c_city
+        drw.Item("title") = "Group Balance Report"
+        tblcompany.Rows.Add(drw)
+        rpt.Database.Dispose()
+        Dim ds As New DataSet
+        ds.Tables.Add(tblgroup)
+        ds.Tables.Add(tblcompany)
+        rpt.SetDataSource(ds)
+        rpt.SetParameterValue(0, SysDateFormat(DateToday))
+        Crv.ReportSource = rpt
+        frmshowProgress.Close()
+    End Sub
+    Sub CreateGroup()
+        tblgroup = New DataTable("groupbalance")
+        tblgroup.Columns.Add("scheme", System.Type.GetType("System.String"))
+        tblgroup.Columns.Add("group", System.Type.GetType("System.String"))
+        tblgroup.Columns.Add("startno", System.Type.GetType("System.Double"))
+        tblgroup.Columns.Add("endno", System.Type.GetType("System.Double"))
+        tblgroup.Columns.Add("winner", System.Type.GetType("System.Double"))
+        tblgroup.Columns.Add("exsiting", System.Type.GetType("System.Double"))
+        tblgroup.Columns.Add("adjusted", System.Type.GetType("System.Double"))
+        tblgroup.Columns.Add("total", System.Type.GetType("System.Double"))
+        tblgroup.Columns.Add("gold", System.Type.GetType("System.Double"))
+        tblgroup.Columns.Add("balance", System.Type.GetType("System.Double"))
+        tblgroup.Columns.Add("canceled", System.Type.GetType("System.Double"))
+        tblgroup.Columns.Add("status", System.Type.GetType("System.String"))
+    End Sub
+    Private Sub Crv_DrillDownSubreport(ByVal source As Object, ByVal e As CrystalDecisions.Windows.Forms.DrillSubreportEventArgs) Handles Crv.DrillDownSubreport
+        e.Handled = True
+    End Sub
+
+   
+End Class
+'qry = "select groups.code,sum(if(member_ledger.note='R',member_ledger.amount,0)) as balance,sum(if(member_ledger.note='R',member_ledger.gross_wt,0)) as gold_balance,groups.start_no,groups.end_no,if(groups.closed=1,'Closed','Open') as status, count(DISTINCT(winner.member_no)) as winner ,scheme.scheme_name  as scheme,"
+'qry += " groups.no_of_members,sum(if(members.info like 'A%',1,0)) as adjust, 0 as ADJWINNER,count(DISTINCT(members.member_id)) as exits"
+'qry += " from groups "
+'qry += " join scheme on groups.scheme_id=scheme.scheme_id"
+'qry += " left join members on members.mgroup=groups.code "
+'qry += " left join winner on winner.member_no = members.member_id"
+'qry += " LEFT join member_ledger on member_ledger.member_id=members.member_id and (members.info IS NULL OR TRIM(LEFT(members.info,1))='')  and  winner.wdate is null"
+'If cboScheme.SelectedIndex <> -1 Then
+'    qry += " where groups.scheme_id= " & Val(cboScheme.SelectedValue) & ""
+'Else
+'    'qry += "select code from groups "
+'End If
+'qry += " group by members.mgroup "
+''qry += " order by code "
+'Dim drw, rrw As DataRow
+'tbl = scheme.Fill_Table(qry, "group")
+'For Each rrw In tbl.Rows
+'    drw = tblgroup.NewRow
+'    drw.Item("scheme") = rrw("scheme") & ""
+'    drw.Item("group") = rrw("code") & ""
+'    drw.Item("startno") = Val(rrw("start_no") & "")
+'    drw.Item("endno") = Val(rrw("end_no") & "")
+'    drw.Item("winner") = Val(rrw("winner") & "")
+'    drw.Item("adjusted") = Val(rrw("adjust") & "") - Val(rrw("ADJWINNER") & "")
+'    drw.Item("total") = Val(rrw("no_of_members") & "")
+'    drw.Item("gold") = Val(rrw("gold_balance") & "")
+'    drw.Item("balance") = Val(rrw("balance") & "")
+'    drw.Item("status") = rrw("status") & ""
+'    drw.Item("exsiting") = Val(rrw("exits") & "") - Val(rrw("winner") & "") - Val(rrw("adjust") & "") + Val(rrw("ADJWINNER") & "")
+'    tblgroup.Rows.Add(drw)
+'Next

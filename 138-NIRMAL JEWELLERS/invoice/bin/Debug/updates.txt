@@ -1,0 +1,2 @@
+insert into sec_modulelist (modulename,submodule,menuname,menuevents) values
+('REPORT','ADVANCE RECEIVED','AdvanceReceviedToolStripMenuItem','AdvanceReceviedToolStripMenuItem_Click');

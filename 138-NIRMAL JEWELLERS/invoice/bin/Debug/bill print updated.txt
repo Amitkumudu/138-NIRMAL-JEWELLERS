@@ -1,0 +1,918 @@
+ Public Function billprint(ByVal isView As Boolean) As String
+
+        'Created by shankar, Created on 6-08-2008 last modified on 17-4-09
+        If MyAppMode = 2 Then
+            'If picdouble.Visible Then
+            DumbBill = True
+        Else
+            DumbBill = False
+        End If
+        Dim Estimate As Boolean = False
+        Dim IsSchemePrint As Boolean = False
+        If pcestimate.Visible = True Then Estimate = True
+        CRVINVOICE.Enabled = True
+        crearetable()
+        'SCHEME TABLE
+        Dim tblscheme As DataTable
+        tblscheme = New DataTable("dtscheme")
+        Dim typstr, typint As Type
+        typstr = System.Type.GetType("System.String")
+        typint = System.Type.GetType("System.Double")
+        tblscheme.Columns.Add("group", typstr)
+        tblscheme.Columns.Add("name", typstr)
+        tblscheme.Columns.Add("memno", typstr)
+        tblscheme.Columns.Add("bill", typstr)
+        tblscheme.Columns.Add("baln_amount", typint)
+        tblscheme.Columns.Add("baln_gold", typint)
+        tblscheme.Columns.Add("saskey", typstr)
+        tblscheme.Columns.Add("rate", typint)
+        tblscheme.Columns.Add("oldbal", typint)
+
+        Dim ordtitle As String = ""
+        Dim comment As String = ""
+        Dim customerid, orderadvancevalue As Integer
+        Dim total As Double
+        Dim Btotal As Integer
+        Dim temp As New DataTable
+        Dim imageReport As Boolean = False
+        orderadvancevalue = 0
+        Dim orderadvance, customer, company, adv_det, metname, orderno, paymode, returns, order_advmetal, order_advcash, order_advance As String
+        Dim wt, ival, tax, adjustment, bill_recv, wttowt As Double
+        Dim title, datte, staff, timee As String
+        orderadvance = "" : title = "" : datte = "" : staff = "" : timee = "" : order_advmetal = "" : order_advcash = ""
+        customer = "" : company = "" : adv_det = "" : metname = "" : order_advance = ""
+        Dim ds As New DataSet
+        Dim oldpurchase As Integer
+        Dim sdr, cdr, cmdr, advdr As DataRow 'comment,
+        If Estimate Then
+            ds = iClass.Fill_Dataset("Select billno,billdate,staff,saletime,customer,orderno,taxamount,bill_recv,old_value,scheme,sale_ret_value,cash_adv,cash_recd,chq_recd,chqno,ccardno,card_recd,sale_ret_no,sale_ret_wt,metaltype.name as MetalName,order_rate,old_purity from est_sale left join metaltype on metaltype.id=est_sale.metaltype where billno='" & txtBillno.Text & "'", "sale")
+        Else
+            ds = iClass.Fill_Dataset("Select billno,billdate,staff,saletime,customer,orderno,taxamount,bill_recv,old_value,scheme,sale_ret_value,cash_adv,cash_recd,chq_recd,chqno,ccardno,card_recd,sale_ret_no,sale_ret_wt,metaltype.name as MetalName,order_rate,old_purity from sale left join metaltype on metaltype.id=sale.metaltype where billno='" & txtBillno.Text & "'", "sale")
+        End If
+        If ds.Tables("sale").Rows.Count = 0 Then
+            MsgBox("Bill doesnot exist", MsgBoxStyle.Exclamation, appCaption)
+            Exit Function
+        End If
+        sdr = ds.Tables("sale").Rows(0)
+        Dim VatDiscount As Double = 0
+
+        If sdr Is Nothing Then
+            MsgBox("Bill doesnot exist", MsgBoxStyle.Exclamation, appCaption)
+            Exit Function
+        End If
+        Dim MetalName As String = ""
+        MetalName = Trim(sdr("metalname") & "")
+        VatDiscount = CDouble(sdr("old_purity") & "")
+        title = sdr("billno") & ""
+        datte = cnvDateFormat(sdr("billdate"))
+        staff = sdr("staff") & ""
+        'timee = sdr("saletime") & ""
+        If IsDate(sdr("saletime") & "") Then
+            timee = TimeValue(sdr("saletime") & "").ToShortTimeString
+        Else
+            timee = sdr("saletime") & ""
+        End If
+        customerid = sdr("customer") & ""
+        orderno = sdr("orderno") & ""
+        tax = sdr("taxamount") & ""
+
+        bill_recv = sdr("bill_recv") & ""
+        If (sdr("orderno") & "") <> String.Empty Then
+            If repair = True Then
+                ordtitle = "Repair No"
+            Else
+                ordtitle = "Order No"
+                Dim Drow As DataRow : Dim dadv As New DataSet
+                dadv = iClass.Fill_Dataset("select slno, irate, metaltype.name,note,paymode,ivalue,netwt,payno from order_advance left join metaltype on metaltype.id =order_advance.metaltype where orderno='" & sdr("orderno") & "'", "order_advance")
+                Dim int, metal, value, rate As Double
+                Dim nm As String = ""
+                order_advance = "Order Advance" & Chr(13)
+                rate = CDouble(sdr("order_rate") & "")
+                If dadv.Tables("order_advance").Rows.Count > 0 Then
+                    For Each Drow In dadv.Tables("order_advance").Rows
+                        If (Drow("name") & "") = String.Empty Then
+                            'order_advcash += (Drow("paymode") & ""):If Drow("payno") & "" <> String.Empty Then
+                            'order_advcash += " No: " & (Drow("payno") & "") 'End If
+                            int += CDouble(Drow("ivalue") & "")
+                        Else
+                            nm = (Drow("name") & "")
+                            If ConverttoOrderval And chkwttowt.Checked = False Then
+                                value += CDouble(Drow("ivalue") & "")
+                                'rate = Drow("irate") & ""
+                            Else
+                                value += Math.Round(CDouble(Drow("netwt") & "") * rate, 2) ' (Drow("ivalue") & "")
+                            End If
+                            metal += CDouble(Drow("netwt") & "")
+                        End If
+                    Next
+                Else
+                    dadv = iClass.Fill_Dataset("select * from ord_main where o_key='" & sdr("orderno") & "'", "order")
+                    If dadv.Tables("order").Rows.Count > 0 Then
+                        metal = CDouble(dadv.Tables("order").Rows(0).Item("o_totg_adv") & "")
+                    End If
+                    value = Math.Round((metal * rate), 0)
+                End If
+                If int <> 0 Then order_advcash += " Rs " & Format(CDouble(int), "0.00")
+                If metal <> 0 Then order_advmetal = nm & " Wt: " & Replace(FormatNumber(metal, 3), ",", "") & " Value :" & Replace(FormatNumber(value, 2), ",", "")
+                If order_advmetal.Length > 0 Then order_advance += order_advmetal
+                If order_advcash.Length > 0 Then order_advance += Space(2) & (order_advcash) 'Chr(13) + 
+                If metal <> 0 Then
+                    If ConverttoOrderval And chkwttowt.Checked = False Then
+                        orderadvance = " Less Advance Wt: " & FormatNumber(metal, 3)
+                        orderadvancevalue = value
+                    Else
+                        orderadvance = " Less Advance Wt: " & FormatNumber(metal, 3) & " x " & Replace(FormatNumber(rate, 2), ",", "")
+                        orderadvancevalue = value
+                    End If
+                End If
+            End If
+        End If
+
+        Dim leng = alignCash(CDouble(sdr("cash_recd") & ""), CDouble(sdr("chq_recd") & ""), CDouble(sdr("card_recd") & ""))
+        adjustment = CDouble(sdr("scheme") & "") + CDouble(sdr("sale_ret_value") & "") + CDouble(sdr("cash_adv") & "")
+        If CDouble(sdr("cash_recd") & "") < 0 Then
+            paymode = "Cash (refund): " & FormatNumber(iClass.Fix_len(CDouble(sdr("cash_recd") & ""), leng, " "), 2)
+        Else
+            paymode = "Cash: " & FormatNumber(iClass.Fix_len(CDouble(sdr("cash_recd") & ""), leng, " "), 2)
+        End If
+        If Val(sdr("chq_recd") & "") <> 0 Then
+            If CDouble(sdr("chq_recd") & "") < 0 Then
+                paymode += Chr(13) & "Chq (refund): " & FormatNumber(iClass.Fix_len(CDouble(sdr("chq_recd") & ""), leng + 1, " "), 2) & " No: " & sdr("chqno") & ""
+            Else
+                paymode += Chr(13) & "Chq: " & FormatNumber(iClass.Fix_len(CDouble(sdr("chq_recd") & ""), leng + 1, " "), 2) & " No: " & sdr("chqno") & ""
+            End If
+        End If
+        If Val(sdr("card_recd") & "") <> 0 Then
+            If CDouble(sdr("card_recd") & "") < 0 Then
+                paymode += Chr(13) & "Card (refund): " & FormatNumber(iClass.Fix_len(CDouble(sdr("card_recd") & ""), leng + 1, " "), 2) & " No: " & sdr("ccardno") & ""
+            Else
+                paymode += Chr(13) & "Card: " & FormatNumber(iClass.Fix_len(CDouble(sdr("card_recd") & ""), leng + 1, " "), 2) & " No: " & sdr("ccardno") & ""
+            End If
+        End If
+        total = CDouble(sdr("card_recd") & "") + CDouble(sdr("chq_recd") & "") + (CDouble(sdr("cash_recd") & ""))
+        returns = ""
+        Dim adj_title As String
+        Dim sale_return As String = ""
+        If Val(sdr("sale_ret_value") & "") <> 0 Then
+            sale_return = "Sales Retrun: " & (sdr("sale_ret_no") & "").ToString.ToUpper & " Wt:" & Format(CDouble((sdr("sale_ret_wt") & "")), "0.000") & " Value:" & Format(CDouble((sdr("sale_ret_value"))), "0.00")
+        End If
+        If order_advance.Length > 0 Then
+            '   returns += Chr(13) & order_advcash
+        End If
+        If Val(sdr("scheme") & "") <> 0 Then
+            returns += Chr(13) & "Scheme " & Format(CDouble(sdr("scheme") & ""), "0.00")
+            ' End If
+        End If
+
+        'sale_ret_no,sale_ret_wt,sale_ret_value,scheme from sale
+        ds = iClass.Fill_Dataset("select metaltype.name ,weight_amt, purity, irate,ivalue,netwt,note from sale_advance,metaltype where metaltype.id=sale_advance.metaltype and sale_advance.billno='" & txtBillno.Text & "'", "sale_advance")
+        adv_det = ""
+        If ds.Tables("sale_advance").Rows.Count > 0 Then
+            For Each advdr In ds.Tables("sale_advance").Rows
+                metname = (Trim(advdr("name") & ""))
+                wt += CDouble(advdr("netwt") & "")
+                ival += CDouble(advdr("ivalue") & "")
+            Next
+            adv_det = metname & " Wt:" & Format(wt, "0.000") & " Value:" & Format(ival, "0.00")
+            'adv_det = metname & Space(5) & "Value " & Format(ival, "0.00")
+        End If
+        returns = ""
+        adj_title = ""
+        If ival <> 0 Then
+            returns = "OLD" & Mid(MetalName, 1, 1) & " " & adv_det & (Chr(13))
+            adj_title = "OLD" & Mid(MetalName, 1, 1) & " "
+            adjustment = adjustment + ival
+        End If
+        If sale_return.Length <> 0 Then
+            returns += sale_return & Chr(13)
+            If adj_title.Length > 0 Then adj_title += "+"
+            adj_title += "SR "
+        End If
+        If Trim(order_advcash).Length <> 0 Then
+            returns += "ADV " & order_advcash & Chr(13)
+            If adj_title.Length > 0 Then adj_title += "+"
+            adj_title += "ADV "
+        End If
+        If Val(sdr("scheme") & "") <> 0 Then
+            Dim tbtt As New DataTable
+            tbtt = iClass.Fill_Table("select * from sale_scheme where billno='" & Trim(txtBillno.Text) & "'", "sch")
+            If tbtt.Rows.Count > 0 Then
+                Dim schrw As DataRow
+                If tbtt.Rows.Count = 0 Then
+                    For Each schrw In tbtt.Rows
+                        If CDouble(schrw("s_wt") & "") > 0 Then
+                            returns += Chr(13) & "SCH:(" & Trim(schrw("s_code") & "") & "-" & Trim(schrw("s_member") & "") & ") WT " & CDouble(schrw("s_wt") & "") & "x" & CDouble(schrw("s_rate") & "") & "=" & Format((CDouble(schrw("s_amount") & "")), "0.00") ' Format(CDouble(sdr("scheme") & ""), "0.00")
+                        Else
+                            returns += Chr(13) & "SCH:(" & Trim(schrw("s_code") & "") & "-" & Trim(schrw("s_member") & "") & ")" & Format((CDouble(schrw("s_amount") & "")), "0.00") ' Format(CDouble(sdr("scheme") & ""), "0.00")
+                        End If
+                    Next
+                Else
+                    Dim schm_wt As Double = 0
+                    Dim schm_tot As Double = 0
+                    Dim schm_amt As Double = 0
+                    Dim schm_rate As Double = 0
+                    Dim nr As DataRow
+                    For Each schrw In tbtt.Rows
+                        nr = tblscheme.NewRow
+                        nr("group") = schrw("s_code") & ""
+                        nr("name") = schrw("s_name") & ""
+                        nr("memno") = schrw("s_member") & ""
+                        nr("bill") = schrw("billno") & ""
+                        nr("baln_amount") = CDouble(schrw("s_amount") & "")
+                        nr("baln_gold") = CDouble(schrw("s_wt") & "")
+                        nr("oldbal") = CDouble(schrw("oldvalue") & "")
+                        nr("saskey") = schrw("saskey") & ""
+                        If CDouble(schrw("s_rate") & "") > 0 Then
+                            schm_rate = CDouble(schrw("s_rate") & "")
+                        End If
+                        If CDouble(schrw("s_wt") & "") > 0 Then
+                            schm_wt += CDouble(schrw("s_wt") & "")
+                            schm_tot += CDouble(schrw("s_amount") & "")
+                            nr("rate") = CDouble(schrw("s_rate") & "")
+                        Else
+                            schm_amt += CDouble(schrw("s_amount") & "")
+                            nr("rate") = 0
+                        End If
+                        tblscheme.Rows.Add(nr)
+                    Next
+                    If schm_wt > 0 Then
+                        returns += Chr(13) & "Sch WT " & schm_wt & "x" & schm_rate & "=" & schm_tot
+                        If schm_amt > 0 Then
+                            returns += "+" & schm_amt & "=" & schm_tot + schm_amt
+                        End If
+                    Else
+                    End If
+                    IsSchemePrint = True
+                End If
+            Else
+                returns += "Scheme " & Format(CDouble(sdr("scheme") & ""), "0.00")
+            End If
+            If adj_title.Length > 0 Then adj_title += "+"
+            adj_title += "SCH"
+        End If
+        Dim dsbin As New DataSet
+        Dim ivalue As Double
+        Dim bqry As String : Dim bintrans As String = ""
+        bqry = " select flag,fbin.name as fname,tbin.name as tname,gross,beeds,wastage,bindata.metaltype as metaltype,bin_to,bin_from from bindata left join bin as fbin on fbin.id=bindata.bin_from"
+        bqry += " left join bin as tbin on tbin.id=bindata.bin_to where refno='" & txtBillno.Text & "'"
+        dsbin = iClass.Fill_Dataset(bqry, "bin")
+        If dsbin.Tables("bin").Rows.Count > 0 Then
+            Dim drbin As DataRow
+            bintrans = ""
+            Dim leng1, leng2, nolen, nolen1 As Integer
+            For Each drbin In dsbin.Tables("bin").Rows
+                leng1 = alignCash(Trim(drbin("fname") & ""), Trim(drbin("tname") & ""), "1")
+                If leng1 > leng2 Then leng2 = leng1
+                nolen = alignCash(Format(CDouble(drbin("gross") & ""), "0.000"), 0, 0)
+                If nolen > nolen1 Then nolen1 = nolen
+            Next
+            leng2 = 6
+            Dim tbBinmast As New DataTable
+            tbBinmast = iClass.Fill_Table("select * from binmast", "binmast")
+            For Each drbin In dsbin.Tables("bin").Rows
+                If drbin("fname") & "" <> drbin("tname") & "" Then
+                    Dim shopbin As Integer = 0
+                    shopbin = Val(iClass.GetBINID(tbBinmast, CDouble(drbin("metaltype") & ""), "shopbin"))
+                    If shopbin = Val(drbin("bin_from") & "") Then
+                        bintrans += Mid(Trim(drbin("tname") & ""), 1, 5).PadRight(leng2) & " +" & Format(CDouble(drbin("gross") & ""), "0.000").PadLeft(nolen1) & Chr(13)
+                    Else
+                        bintrans += Mid(Trim(drbin("fname") & ""), 1, 5).PadRight(leng2) & " -" & Format(CDouble(drbin("gross") & ""), "0.000").PadLeft(nolen1) & Chr(13)
+                    End If
+                    'If drbin("flag") & "" = "NEW" Then
+                    '    bintrans += Trim(drbin("fname") & "").PadRight(leng2) & " +" & Format(CDouble(drbin("gross") & ""), "0.000").PadLeft(nolen1) & Chr(13)
+                    'Else
+                    '    bintrans += Trim(drbin("tname") & "").PadRight(leng2) & " -" & Format(CDouble(drbin("gross") & ""), "0.000").PadLeft(nolen1) & Chr(13)
+                    'End If
+                End If
+            Next
+        End If
+        Dim qry As String
+        If Estimate Then
+            qry = "select est_sale_details.stock,est_sale_details.slno,est_sale_details.beedsval,est_sale_details.billno,metaltype.name as Metal,est_sale_details.stock,itemtype.name as item ,design.name as design,"
+            qry += " purity.name as purity ,est_sale_details.gross ,est_sale_details.beeds,est_sale_details.wastage,est_sale_details.mc,est_sale_details.rate,est_sale_details.pcs,est_sale_details.handlingcharge"
+            qry += " from est_sale_details join metaltype on est_sale_details.metaltype=metaltype.id"
+            qry += " left join purity on est_sale_details.purity=purity.id "
+            qry += " join itemtype on est_sale_details.itemtype =itemtype.id "
+            qry += " left join design on est_sale_details.design=design.id "
+            qry += " left join beeds on est_sale_details.beedstype=beeds.id "
+            qry += " where est_sale_details.billno='" & txtBillno.Text & "'"
+        Else
+            qry = "select sale_details.stock,sale_details.slno,sale_details.beedsval,sale_details.billno,metaltype.name as Metal,sale_details.stock,itemtype.name as item ,design.name as design,"
+            qry += " purity.name as purity ,sale_details.gross ,sale_details.beeds,sale_details.wastage,sale_details.mc,sale_details.rate,sale_details.pcs,sale_details.handlingcharge"
+            qry += " from sale_details join metaltype on sale_details.metaltype=metaltype.id"
+            qry += " left join purity on sale_details.purity=purity.id "
+            qry += " join itemtype on sale_details.itemtype =itemtype.id "
+            qry += " left join design on sale_details.design=design.id "
+            qry += " left join beeds on sale_details.beedstype=beeds.id "
+            qry += " where sale_details.billno='" & txtBillno.Text & "'"
+        End If
+        Dim dso As New DataSet
+        Dim currentitem, itemcount As Integer
+        Dim dr, dss As DataRow
+        dso = iClass.Fill_Dataset(qry, "sale_details")
+        Dim mcdetail As String = ""
+        Dim iint As Integer = 1
+        Dim billwt As Double = 0
+        Dim totMCs As Double = 0
+        For Each dr In dso.Tables("sale_details").Rows
+            dss = Dst.NewRow
+            dss.Item("id") = iint
+
+            dss.Item("slno") = dr("slno")
+            dss.Item("metal") = dr("metal")
+            If repair = True Then
+                dss.Item("item") = Trim(dr("item") & "")
+            Else
+                dss.Item("item") = Trim(dr("item") & "") & "-" & Trim(dr("design") & "")
+            End If
+            'dss.Item("staff") = Trim(dr("item") & "") & "-" & Trim(dr("design") & "") & Space(2) & dr("stock") & ""
+            Dim filepath As String
+            Dim descp As String
+            filepath = ImageFolderPath & "\" & Trim(dr("item") & "") & "\" & Trim(dr("design") & "") & "\" & Trim(dr("stock") & "") & ".jpg"
+            If filepath <> String.Empty And IO.File.Exists(filepath) Then
+                dss.Item("filepath") = filepath
+                Dim stkimage As Image
+                Dim picbox1 As New PictureBox
+                picbox1.Width = 250 : picbox1.Height = 250
+                stkimage = FitwithAspectRatio(filepath, picbox1)
+                If IO.File.Exists("temp.jpg") Then IO.File.Delete("temp.jpg")
+                stkimage.Save("temp.jpg")
+                Dim fs As New IO.FileStream("temp.jpg", IO.FileMode.Open)
+                Dim br As New IO.BinaryReader(fs)
+                dss.Item("image") = br.ReadBytes(br.BaseStream.Length)
+                fs.Close()
+            Else
+                dss.Item("filepath") = ""
+            End If
+            If imageReport = True Then
+                descp = (dr("purity") & "") & " " & Trim(dr("metal") & "") & " " & Trim(dr("item") & "") & "-" & Trim(dr("design") & "")
+                descp += Chr(13) & "G :" & FormatNumber(CDouble(dr("gross") & ""), 3) & "@ " & FormatNumber(CDouble(dr("rate") & ""), 2)
+                descp += Chr(13) & "Pcs :" & dr("pcs") & ""
+                dss.Item("item") = descp
+            End If
+            dss.Item("hc") = CDouble(dr("handlingcharge") & "")
+            dss.Item("b_pcs") = dr("stock") & ""
+            dss.Item("purity") = dr("purity")
+            dss.Item("gross") = dr("gross")
+            dss.Item("beeds") = dr("beeds")
+            dss.Item("wastage") = dr("wastage")
+            dss.Item("staff") = ordtitle
+            If CDouble(dr("rate")) > 0 Then
+                billwt += ((CDouble(dr("gross") & "") - CDouble(dr("beeds") & "")) + CDouble(dr("wastage") & ""))
+            End If
+            dss.Item("pcs") = dr("pcs")
+            If Isrepair(txtOrder.Text) Then
+                dss.Item("mc") = CDouble(dr("mc") & "") + CDouble(dr("handlingcharge") & "")
+            Else
+                Dim tempMC As Double
+                tempMC = CDouble(dr("mc") & "") / (CDouble(dr("gross") & "") - CDouble(dr("beeds") & ""))
+                dss.Item("b_class") = Math.Round(tempMC, 2)
+                dss.Item("mc") = CDouble(dr("mc") & "")  'Math.Round(tempMC, 2) ' dr("mc")
+            End If
+            mcdetail += "* " & (dr("slno") & "") & " - " & FormatNumber(CDouble(dr("mc") & "") / CDouble(dr("gross") & ""), 0) & Chr(13)
+
+            dss.Item("staff") = mcdetail
+            dss.Item("rate") = dr("rate")
+            dss.Item("b_ct") = dr("beedsval")
+            If bill_recv <> 0 Then
+                dss.Item("adv_detail") = "Rupees " & StrConv(MakeWord(Math.Abs(bill_recv)), VbStrConv.ProperCase) & " Only"
+            Else
+                dss.Item("adv_detail") = ""
+            End If
+            ivalue += Math.Round(((CDouble(dr("gross") & "") - CDouble(dr("beeds") & "") + CDouble(dr("wastage") & "")) * CDouble(dr("rate") & "")) + CDouble(dr("mc") & "") + CDouble(dr("beedsval") & "") + CDouble(dr("handlingcharge") & ""), 0)
+            totMCs += CDouble(dr("mc") & "") + CDouble(dr("beedsval") & "") + CDouble(dr("handlingcharge") & "")
+            '' Dst.Rows.Add(dss)
+
+            '##########added to identfiy the presence of beeds ---shankar
+            itemcount += 1 'to calculate the no of items for the bill
+            Dim dsb As New DataTable
+            If repair = True Then
+                dss.Item("beedname") = "%"
+
+            Else
+                dsb = iClass.Fill_Table("select beedsreference.tagno,beeds.name,beedsreference.ct,beedsreference.pcs,beedsreference.class from beedsreference,beeds where beedsreference.beedstype=beeds.id and tagno>0 and tagno=" & dr("stock") & " and beeds.name like 'DIAMOND%'", "beeds")
+                If dsb.Rows.Count > 0 Then
+                    dss.Item("beedname") = "%"
+
+                End If
+            End If
+            Dst.Rows.Add(dss)
+            If repair = True Then
+                dss = Dst.NewRow
+                dss.Item("slno") = 0
+                dss.Item("PURITY") = ""
+                Dim repds As New DataSet
+                repds = iClass.Fill_Dataset("Select * from repair_detail where r_receipt ='" & orderno & "' and slno=" & dr("slno") & "", "repair_detail")
+                If repds.Tables("repair_detail").Rows.Count > 0 Then
+                    Dim rrdw As DataRow = repds.Tables("repair_detail").Rows(0)
+                    dss.Item("beedname") = "G.Wt" & Space(2) & Format(CDouble(rrdw("gross")), "0.000")
+                End If
+                Dst.Rows.Add(dss)
+                currentitem += 1
+                itemcount += 1
+            Else
+                dsb = iClass.Fill_Table("select beedsreference.tagno,beeds.name,beedsreference.ct,beedsreference.pcs,beedsreference.class from beedsreference,beeds where beedsreference.beedstype=beeds.id and tagno>0 and tagno=" & dr("stock") & " and beeds.name like 'DIAMOND%'", "beeds")
+                Dim beedsname As String = ""
+                Dim bdr As DataRow
+                For Each bdr In dsb.Rows
+                    dss = Dst.NewRow
+                    dss.Item("slno") = 0
+                    dss.Item("PURITY") = ""
+                    beedsname += Trim(bdr("name") & "") & ""
+                    If CDouble(bdr("ct") & "") > 0 Then beedsname += " Ct:" & bdr("ct") & ""
+                    If CDouble(bdr("pcs") & "") > 0 Then beedsname += " Pcs " & (bdr("pcs") & "")
+                    If Trim(bdr("class") & "") <> String.Empty Then beedsname += " C: " & bdr("class") & ""
+                    beedsname += " " & Chr(13)
+                    currentitem += 1
+                    itemcount += 1
+                    dss.Item("beedname") = beedsname
+                    dss.Item("id") = iint + 1
+                    Dst.Rows.Add(dss)
+                Next
+            End If
+            If chkwttowt.Checked = True Or chksrwt.Checked = True Then
+                If itemcount = 8 Then
+                    For ss As Integer = 1 To 25
+                        dss = Dst.NewRow
+                        iint += 1
+                        If ss < 12 Then
+                            dss.Item("PURITY") = ""
+                            dss.Item("slno") = 1000
+                            dss.Item("beedname") = ""
+                        Else
+                            dss.Item("purity") = "HIDE"
+                        End If
+                        Dst.Rows.Add(dss)
+                    Next
+                    dss = Dst.NewRow
+                    dss.Item("purity") = ""
+                    dss.Item("slno") = 123
+                    Dst.Rows.Add(dss)
+                End If
+            Else
+                If itemcount = 11 Then
+                    For ss As Integer = 1 To 15
+                        dss = Dst.NewRow
+                        iint += 1
+                        If ss < 7 Then
+                            dss.Item("PURITY") = ""
+                            dss.Item("slno") = 1000
+                            dss.Item("beedname") = ""
+                        Else
+                            dss.Item("purity") = "HIDE"
+                        End If
+                        Dst.Rows.Add(dss)
+
+                    Next
+                    dss = Dst.NewRow
+                    dss.Item("purity") = ""
+                    dss.Item("slno") = 123
+                    Dst.Rows.Add(dss)
+                End If
+            End If
+
+        Next
+        'ivalue = totMCs + ivalue
+        If imageReport = True Then
+            If Dst.Rows.Count < 5 Then
+                For cnu As Integer = Dst.Rows.Count To 5
+                    dss = Dst.NewRow : dss.Item("slno") = 0 : dss.Item("filepath") = "" : Dst.Rows.Add(dss)
+                Next
+            End If
+        End If
+        ds = iClass.Fill_Dataset("select * from customer where id=" & customerid & "", "customer")
+        If ds.Tables("customer").Rows.Count > 0 Then
+            cdr = ds.Tables("customer").Rows(0)
+            If cdr("address") & "" <> String.Empty Then
+                customer = cdr("address") & ""
+            End If
+            If cdr("address1") & "" <> String.Empty Then
+                If Len(customer) > 0 Then customer += Chr(13)
+                customer += cdr("address1") & ""
+            End If
+            If cdr("address2") & "" <> String.Empty Then
+                If Len(customer) > 0 Then customer += Chr(13)
+                customer += cdr("address2") & ""
+            End If
+            If cdr("place") & "" <> String.Empty And MyAppMode <> 2 Then
+                If Len(customer) > 0 Then customer += Chr(13)
+                customer += cdr("place") & ""
+            End If
+            If cdr("pincode") & "" <> String.Empty Then
+                customer += "-" & cdr("pincode")
+            End If
+            If cdr("phone") & "" <> String.Empty Then
+                ' If Len(customer) > 0 Then customer += Chr(13)
+                ' customer += "Ph: " & cdr("phone") & ""
+            End If
+            If cdr("mobileno") & "" <> String.Empty Then
+                '  customer += " Mob: " & cdr("mobileno") & ""
+            End If
+        End If
+        If MyAppMode = 2 And hideadd Then
+            customer = " "
+        End If
+        'If DumbBill Then
+        '    customer = " "
+        'End If
+        Dim pDS As New DataSet : Dim pur_det As String = ""
+        pDS = iClass.Fill_Dataset("select * from purchase where sale_billno='" & txtBillno.Text & "'", "purchase")
+        If pDS.Tables("purchase").Rows.Count > 0 Then
+            pur_det = "Old Purchase " & pDS.Tables("purchase").Rows(0).Item("billno") & "" & Chr(13)
+            pDS = iClass.Fill_Dataset("select metaltype.name,weight,mpurity,netwt,value as value,details from purchase_details left join metaltype on metaltype.id= purchase_details.metaltype WHERE billno = '" & pDS.Tables("purchase").Rows(0).Item("billno") & "" & "'", "purchase_details")
+            Dim pdr As DataRow : Dim leng1, leng2, leng3, leng4, leng5, leng6, leng7, leng8 As Integer
+            For Each pdr In pDS.Tables("purchase_details").Rows
+                leng1 = alignCash(Format(CDouble(pdr("value") & ""), "0.00"), Format(CDouble(pdr("value") & ""), "0.00"), "1")
+                If leng1 > leng2 Then leng2 = leng1
+                leng5 = alignCash(Format(CDouble(pdr("weight") & ""), "0.000"), Format(CDouble(pdr("weight") & ""), "0.000"), "1")
+                If leng5 > leng6 Then leng6 = leng5
+                leng7 = alignCash(Format(CDouble(pdr("netwt") & ""), "0.000"), Format(CDouble(pdr("netwt") & ""), "0.000"), "1")
+                If leng7 > leng8 Then leng8 = leng7
+                leng3 = alignCash(Trim(pdr("details") & ""), Trim(pdr("details") & ""), "1")
+                If leng3 > leng4 Then leng4 = leng3
+            Next
+            For Each pdr In pDS.Tables("purchase_details").Rows
+                pur_det += Trim((pdr("details") & "")).PadRight(leng4) & Space(2) & Format(CDouble(pdr("weight") & ""), "0.000").ToString.PadLeft(leng6)
+                pur_det += "@" & (Format(CDouble(pdr("mpurity") & ""), "00.00") & "%").ToString.PadRight(6)
+                pur_det += " " & Format(CDouble(pdr("netwt") & ""), "0.000").ToString.PadLeft(leng8)
+                pur_det += " =" & (CDouble(pdr("value") & "") & "/-").PadLeft(leng2) & Chr(13)
+                oldpurchase += 1
+                'pur_det += Trim((pdr("details") & "")).PadRight(leng4) & Space(2) & "W:" & Format(CDouble(pdr("weight") & ""), "0.000").ToString.PadLeft(leng6)
+                'pur_det += "@" & (Format(CDouble(pdr("mpurity") & ""), "00.00") & "%").ToString.PadRight(6)
+                'pur_det += " Eq " & Format(CDouble(pdr("netwt") & ""), "0.000").ToString.PadLeft(leng8)
+                'pur_det += "=" & (Format(CDouble(pdr("value") & ""), "0.00") & "/-").PadLeft(leng2) & Chr(13)
+
+            Next
+        End If
+        Dim display As String = "" ' wt to wt desc
+        Dim tbsalewt As New DataTable
+        tbsalewt = iClass.Fill_Table("select * from sale_wt where billno='" & txtBillno.Text & "'", "salewt")
+        If tbsalewt.Rows.Count <> 0 Then
+            Dim rw As DataRow = tbsalewt.Rows(0)
+            Dim ordwt As DataRow
+            display = "Total Wt " & FormatNumber(billwt, 3).Replace(",", "") & " "
+            If Val(rw("weight") & "") <> 0 Or CDouble(rw("refundordwt") & "") <> 0 Then display += "- Advance " & FormatNumber(CDouble(rw("weight") & "") + CDouble(rw("refundordwt") & ""), 3).Replace(",", "")
+            If Val(rw("sr_wt") & "") <> 0 Or CDouble(rw("refundsrwt") & "") <> 0 Then display += "- SR " & FormatNumber(CDouble(rw("sr_wt") & "") + CDouble(rw("refundsrwt") & ""), 3).Replace(",", "")
+            If Val(rw("sch_wt") & "") <> 0 Then display += "- SCH " & FormatNumber(CDouble(rw("sch_wt") & ""), 3).Replace(",", "")
+            If Val(rw("sch_wt") & "") <> 0 Then
+                Dim sch_val_tx As Double
+                sch_val_tx = Math.Round((CDouble(rw("sch_wt") & "") * CDouble(rw("rate") & "")), 0)
+                returns += "Vat includes SCH:" & FormatNumber(CDouble(rw("sch_wt") & ""), 3).Replace(",", "") & "x" & FormatNumber(CDouble(rw("rate") & ""), 2).Replace(",", "") & "=" & sch_val_tx
+            End If
+            Dim tt_wt As Double
+            tt_wt = billwt - (CDouble(rw("weight") & "") + CDouble(rw("sr_wt") & "") + CDouble(rw("sch_wt") & ""))
+            If Math.Round(tt_wt) <= 0 And (CDouble(rw("refundordwt") & "") > 0 Or CDouble(rw("refundsrwt") & "") > 0) Then
+                display += "=" & FormatNumber(-(CDouble(rw("refundordwt") & "") + CDouble(rw("refundsrwt") & "")), 3).Replace(",", "") & "  Rate:" & FormatNumber(CDouble(rw("rate") & ""), 2).Replace(",", "") & " "
+            Else
+                display += "=" & FormatNumber(tt_wt, 3).Replace(",", "") & "x" & FormatNumber(CDouble(rw("rate") & ""), 2).Replace(",", "") & " ="
+            End If
+
+            ordwt = dtsale_wt.NewRow()
+            ordwt.Item("billno") = txtBillno.Text
+            ordwt.Item("weight") = CDouble(rw("weight") & "")
+            ivalue = Math.Round(tt_wt * CDouble(rw("rate") & ""), 0) 'Math.Round(billwt - (CDouble(rw("weight") & "") + CDouble(rw("sr_wt") & "") + CDouble(rw("sch_wt") & ""))) * CDouble(rw("rate") & "")
+            'orderwt = CDouble(rw("weight") & "")
+            wttowt = ivalue
+            ivalue += totMCs
+            ordwt.Item("amount") = ivalue
+            ordwt.Item("rate") = CDouble(rw("rate") & "")
+            ordwt.Item("sr_wt") = CDouble(rw("sr_wt") & "")
+            ordwt.Item("sch_wt") = CDouble(rw("sch_wt") & "")
+            dtsale_wt.Rows.Add(ordwt)
+        Else
+            ivalue = ivalue - orderadvancevalue
+        End If
+        ds = iClass.Fill_Dataset("select * from company", "company")
+        cmdr = ds.Tables("company").Rows(0)
+        company = FullCompanyAdd ' cmdr("c_comptitl") & "," & cmdr("c_comaddr1") & "," & cmdr("c_comaddr2") & "," & cmdr("c_com_city") & "" & "-" & cmdr("c_com_pin") & "" & "," & cmdr("c_com_tel1") & "" & "," & cmdr("c_comtel2") & "" & ",Tin -" & cmdr("c_comp_cst") & ""
+        Dim Dt_dr As DataRow
+        Dt_dr = Dt.NewRow
+
+        Dim TiNNo As String = ""
+        If DisplayTINNO Then
+            If MyAppMode = 2 Then
+            Else
+                TiNNo = ", Tin No:" & Trim(cmdr("c_tin") & "")
+            End If
+        End If
+        Dt_dr.Item("customer") = UCase(customer)
+        If MyAppMode = 2 Then
+            Dt_dr.Item("o_key") = ""
+        Else
+            Dt_dr.Item("o_key") = title 'Replace(title, "CB", "cb")
+        End If
+        Dt_dr.Item("K_date") = cnvDateFormat(datte)
+        Dt_dr.Item("K_time") = (timee)
+        Dt_dr.Item("staff") = staff
+        Dt_dr.Item("adj_title") = adj_title
+        Dt_dr.Item("r_footer") = company & TiNNo
+        Dt_dr.Item("bus_hrs") = cmdr("bus_hrs")
+        Dt_dr.Item("adv_detail") = bintrans
+        Dt_dr.Item("cash_adv") = ival
+        Dt_dr.Item("discount") = CDouble(VatDiscount)
+        'If DumbBill Then
+        '    Dt_dr.Item("name") = " "
+        'Else
+        Dt_dr.Item("name") = cdr("name")
+
+        'End If
+
+        If Trim(display) <> String.Empty Then
+            Dt_dr.Item("r_type") = display
+            Dt_dr.Item("c_balance") = 1
+        Else
+            Dt_dr.Item("r_type") = orderadvance
+            Dt_dr.Item("c_balance") = Val(orderadvancevalue)
+        End If
+
+        Dt_dr.Item("note") = orderno
+        Dt_dr.Item("rate") = tax
+        Dim netbill = (Math.Round(ivalue) + Math.Round(tax, 2)) - adjustment - VatDiscount
+        Dim grand_tt As Double
+        grand_tt = (Math.Round(ivalue) + Math.Round(tax, 2)) - VatDiscount
+        Dim disc = netbill - bill_recv
+        disc = Math.Round(disc, 2)
+        Btotal = netbill - disc
+        If total <> Btotal Then paymode += Chr(13) & "Balance :" & Format(Btotal - total, "0.00")
+        Dt_dr.Item("paymode") = paymode
+        Dt_dr.Item("advancecash") = Math.Round(ivalue)
+        Dt_dr.Item("totalbill") = bill_recv
+        Dt_dr.Item("netbill") = netbill
+        Dt_dr.Item("totaldiscount") = disc
+        Dt_dr.Item("ret_detail") = returns
+        Dt_dr.Item("com_addr") = Trim(MetalName) ' iClass.ExecuteQueryString("select name from metaltype where metaltype.id=(select metaltype from sale where o_key='" & txtBillno.Text & "')")
+        Dt_dr.Item("adjustment") = adjustment
+        Dt_dr.Item("bill_recv") = bill_recv
+        Dt_dr.Item("total") = grand_tt
+        Dt_dr.Item("order_advance") = pur_det
+        Dt_dr.Item("wttowt") = wttowt
+        Dt_dr.Item("companyname") = Company_Name
+        Dt_dr.Item("report_note") = Report_Note
+
+        Dt.Rows.Add(Dt_dr)
+      If Dst.Rows.Count < 10 And Dst.Rows.Count > 7 And oldpurchase > 7 Then
+
+            For ss As Integer = 1 To (32 - Dst.Rows.Count - 4)
+                dss = Dst.NewRow
+                iint += 1
+                If ss < 7 Then
+                    dss.Item("PURITY") = ""
+                    dss.Item("slno") = 1000
+                    dss.Item("beedname") = ""
+                Else
+                    dss.Item("purity") = "HIDE"
+                End If
+                Dst.Rows.Add(dss)
+            Next
+            Dim TBLL As New DataTable
+            Dst.DefaultView.RowFilter = "SLNO=123"
+
+            TBLL = Dst.DefaultView.ToTable
+            If TBLL.Rows.Count = 0 Then
+                dss = Dst.NewRow
+                dss.Item("purity") = ""
+                dss.Item("beedname") = ""
+                dss.Item("slno") = 123
+                Dst.Rows.Add(dss)
+            End If
+        End If
+        Dim dsr As New DataSet
+        dsr.Tables.Add(Dst.Copy)
+        dsr.Tables.Add(temp.Copy)
+        dsr.Tables.Add(Dt.Copy)
+        dsr.Tables.Add(dtsale_wt)
+        temp = iClass.Fill_Table("Select * from company", "company")
+        dsr.Tables.Add(temp.Copy)
+        Dim rptduplicate As ReportClass
+        Dim rpt As ReportDocument
+        Dim i As Integer = 0
+        If chkwttowt.Checked = True Or chksrwt.Checked = True Then 'Or (CDouble(txtSchemeWT.Text) > 0 And CDouble(txtScheme.Text) = 0) Then
+            rpt = New invoice.Crtdeliverybill
+            rpt.Subreports(0).ReportDefinition.Sections("sec_extra2").SectionFormat.EnableSuppress = True
+            rpt.Subreports(1).ReportDefinition.Sections("sec_extra2").SectionFormat.EnableSuppress = True
+            rpt.Subreports(0).ReportDefinition.Sections("sec_extra1").SectionFormat.EnableSuppress = True
+            rpt.Subreports(1).ReportDefinition.Sections("sec_extra1").SectionFormat.EnableSuppress = True
+            rpt.Subreports(1).Database.Dispose()
+            rpt.Subreports(0).SetDataSource(dsr)
+            rpt.Subreports(1).SetDataSource(dsr)
+            rpt.Subreports(0).Database.Dispose()
+        Else
+            i = CDouble(iClass.ExecuteQueriess("select invoicetype from company") & "")
+            If i = 1 Then
+                rpt = New CrtinvoicePrint ' CrtinvoicePrint_sample3 '
+            ElseIf i = 2 Then
+                rpt = New CrtinvoicePrint_sample
+            ElseIf i = 3 Then
+                rpt = New CrtinvoicePrint_sample1
+            ElseIf i = 4 Then
+                rpt = New CrtinvoicePrint_sample2
+                'Dim objText1 As CrystalDecisions.CrystalReports.Engine.TextObject = rpt.Subreports(0).ReportDefinition.Sections(2).ReportObjects("txtcomment")
+                'Dim objText2 As CrystalDecisions.CrystalReports.Engine.TextObject = rpt.Subreports(1).ReportDefinition.Sections(2).ReportObjects("txtcomment")
+                'objText1.Text = "Note:- " & comment
+                'objText2.Text = "Note:- " & comment
+                'ElseIf i = 5 Then
+                '    rpt = New imageinvoice
+            ElseIf i = 5 Then
+                rpt = New CrtinvoicePrint_Barcode
+            ElseIf i = 6 Then
+                rpt = New invoice.RCrtinvoicePrint
+            Else
+                'rpt = New CrtinvoiceFinal_Barcode
+                rpt = New CrtinvoicePrint_sample3
+            End If
+        End If
+        If Estimate Then
+            rpt = New CrtestimationPrint
+        End If
+        If Mid(txtBillno.Text, 1, 1) = "Q" Then
+            Dim crObject As ReportDefinition
+            crObject = rpt.Subreports(0).ReportDefinition
+            Dim crTextObject As TextObject
+            crTextObject = CType(crObject.ReportObjects.Item("Text1"), TextObject)
+            crTextObject.Text = "QUOTATION"
+            crObject = rpt.Subreports(1).ReportDefinition
+            crTextObject = CType(crObject.ReportObjects.Item("Text1"), TextObject)
+            crTextObject.Text = "QUOTATION"
+        End If
+        '######## For Estimation ###########
+        If MyAppMode = 2 Then
+            'If picdouble.Visible = True Then
+            Dim crObject As ReportDefinition
+            crObject = rpt.Subreports(0).ReportDefinition
+            Dim crTextObject As TextObject
+            crTextObject = CType(crObject.ReportObjects.Item("Text1"), TextObject)
+            crTextObject.Text = "ESTIMATION"
+            crObject = rpt.Subreports(1).ReportDefinition
+            crTextObject = CType(crObject.ReportObjects.Item("Text1"), TextObject)
+            crTextObject.Text = "ESTIMATION"
+            'Text11
+        End If
+
+        Dim imageBill As Boolean = True
+
+
+        Dim twopages As Boolean
+        '############## used to fill the blank space when the item are less than 7
+        Try
+            If itemcount > 7 And itemcount <= 10 Then
+                rpt.Subreports(0).ReportDefinition.Sections("sec_extra2").SectionFormat.EnableSuppress = True
+                rpt.Subreports(1).ReportDefinition.Sections("sec_extra2").SectionFormat.EnableSuppress = True
+                rpt.Subreports(0).ReportDefinition.Sections("sec_extra1").SectionFormat.EnableSuppress = True
+                rpt.Subreports(1).ReportDefinition.Sections("sec_extra1").SectionFormat.EnableSuppress = True
+            Else
+                rpt.Subreports(0).ReportDefinition.Sections("sec_extra1").SectionFormat.EnableSuppress = True
+                rpt.Subreports(1).ReportDefinition.Sections("sec_extra1").SectionFormat.EnableSuppress = True
+            End If
+        Catch ex As Exception
+
+        End Try
+
+
+        If oldpurchase > 7 And itemcount < 7 Then
+            For k As Integer = 5 To oldpurchase
+                Try
+                    If k > 9 Then Exit For
+                    rpt.Subreports(0).ReportDefinition.Sections("count" & k).SectionFormat.EnableSuppress = True
+                    rpt.Subreports(1).ReportDefinition.Sections("count" & k).SectionFormat.EnableSuppress = True
+                Catch ex As Exception
+                End Try
+            Next
+        End If
+
+        If imageReport = True Then
+            'rpt = New invoice.Crtinvoicebarcode_image
+            'rpt.Database.Dispose()
+            'rpt.SetDataSource(dsr)
+        ElseIf chkwttowt.Checked = True Or chksrwt.Checked = True Then
+            If itemcount > 7 Then
+                twopages = True
+                rptduplicate = New invoice.CrtinvoicedeliveryA4_Dup
+                rpt = New invoice.CrtinvoicedeliveryA4
+                rpt.Database.Dispose()
+                rpt.SetDataSource(dsr)
+                rptduplicate.Database.Dispose()
+                rptduplicate.SetDataSource(dsr)
+            End If
+        ElseIf oldpurchase > 7 And itemcount >= 7 Then
+            rpt = New CrtinvoiceA4
+            twopages = True
+            rptduplicate = New CrtinvoiceA4_dup
+            rptduplicate.Database.Dispose()
+            rptduplicate.SetDataSource(dsr)
+            rpt.Database.Dispose()
+            rpt.SetDataSource(dsr)
+        ElseIf itemcount <= 10 Then
+            rpt.Subreports(1).Database.Dispose()
+            rpt.Subreports(0).SetDataSource(dsr)
+            rpt.Subreports(1).SetDataSource(dsr)
+            rpt.Subreports(0).Database.Dispose()
+        ElseIf itemcount > 10 Then
+            rpt = New CrtinvoiceA4
+            twopages = True
+            rptduplicate = New CrtinvoiceA4_dup
+            rpt.Database.Dispose()
+            rpt.SetDataSource(dsr)
+            rptduplicate.Database.Dispose()
+            rptduplicate.SetDataSource(dsr)
+        End If
+
+        ' rpt.Database.Dispose()
+        ' rpt.SetDataSource(dsr)
+        Dim ret_string As String = ""
+        If isView Then
+            'Dim rppt As New invoice.Crtinvoicebarcode_image
+            'rpt.Subreports(0).OpenSubrep
+            Dim FrmPr1 As New FrmPreview
+            FrmPr1.CRV1.ReportSource = rpt
+            FrmPr1.MdiParent = mdiJewel
+            LoadChildForm(FrmPr1)
+            FrmPr1.Show()
+            If IsSchemePrint Then
+                dsr = New DataSet("dsinvoice")
+                dsr.Tables.Add(Dt.Copy)
+                dsr.Tables.Add(tblscheme.Copy)
+                rpt = New invoice.CrtschemeAdjustment_Print
+                'rpt.Subreports(0).DataSourceConnections.Clear()
+                ' rpt.Subreports(1).DataSourceConnections.Clear()
+                'rpt.Subreports(0).Database.Dispose()
+                ' rpt.Subreports(1).Database.Dispose()
+                rpt.Subreports(0).SetDataSource(dsr)
+                rpt.Subreports(1).SetDataSource(dsr)
+
+                Dim FrmPr2 As New FrmPreview
+                FrmPr2.CRV1.ReportSource = rpt
+                FrmPr2.MdiParent = mdiJewel
+                LoadChildForm(FrmPr2)
+                FrmPr2.Show()
+            End If
+        Else
+            'CRVINVOICE.ReportSource = rpt
+            Dim pprintsrv As String
+            pprintsrv = ServerPrinter
+            If isSaveclick Then
+
+            Else
+                If PrintServerMode = "Y" Then
+                    Dim pname As String = ""
+                    pname = GetAutoPrinterName(cmbStaff.Text)
+                    If Trim(pname) <> String.Empty Then
+                        ServerPrinter = pname
+                    End If
+                End If
+            End If
+            ret_string = ServerPrinter
+            If Trim(ServerPrinter) <> String.Empty Then
+                Try
+                    rpt.PrintOptions.PrinterName = ServerPrinter
+                    rpt.PrintToPrinter(1, False, 1, 4)
+                    If twopages = True Then
+                        rptduplicate.PrintOptions.PrinterName = ServerPrinter
+                        rptduplicate.PrintToPrinter(1, False, 1, 4)
+                    End If
+                Catch ex As Exception
+                End Try
+            Else
+                Try
+                    rpt.PrintOptions.PrinterName = ServerPrinter
+                    rpt.PrintToPrinter(1, False, 1, 4)
+                    If twopages = True Then
+                        rptduplicate.PrintOptions.PrinterName = ServerPrinter
+                        rptduplicate.PrintToPrinter(1, False, 1, 4)
+                    End If
+                Catch ex As Exception
+                End Try
+                'CRVINVOICE.ReportSource = rpt
+                'CRVINVOICE.PrintReport()
+            End If
+            If IsSchemePrint And isView = False Then
+                dsr = New DataSet
+                dsr.Tables.Add(Dt.Copy)
+                dsr.Tables.Add(tblscheme.Copy)
+                rpt = New invoice.CrtschemeAdjustment_Print
+                rpt.Subreports(1).Database.Dispose()
+                rpt.Subreports(0).SetDataSource(dsr)
+                rpt.Subreports(1).SetDataSource(dsr)
+                rpt.Subreports(0).Database.Dispose()
+                If Trim(ServerPrinter) <> String.Empty Then
+                    Try
+                        rpt.PrintOptions.PrinterName = ServerPrinter
+                        rpt.PrintToPrinter(1, False, 1, 4)
+                    Catch ex As Exception
+                    End Try
+                Else
+                    Try
+                        rpt.PrintOptions.PrinterName = ServerPrinter
+                        rpt.PrintToPrinter(1, False, 1, 4)
+                    Catch ex As Exception
+                    End Try
+                    'CRVINVOICE.ReportSource = rpt
+                    'CRVINVOICE.PrintReport()
+                End If
+            End If
+            ServerPrinter = pprintsrv
+            '    CRVINVOICE.PrintReport()
+        End If
+        ' FrmPreview.CRV1.PrintReport()
+        'CRVINVOICE.Enabled = False
+        Return ret_string
+    End Function

@@ -1,0 +1,23 @@
+insert into sec_modulelist(modulename,submodule,menuname,menuevents)
+values('REPORTS','Order Issue Report','OrderIssuedToolStripMenuItem','OrderIssuedToolStripMenuItem_Click');
+insert into sec_modulelist(modulename,submodule,menuname,menuevents)
+values('REPORTS','Bin Report','BinSummaryToolStripMenuItem','BinSummaryToolStripMenuItem_Click');
+
+
+
+======menu.xml
+<MenuItem id = "Order Issue" onClick="OrderIssuedToolStripMenuItem"/>
+<MenuItem id = "Customer/Dealer/Worker" onClick="BinSummaryToolStripMenuItem"/>
+
+
+
+========mdievents
+Private Sub OrderIssuedToolStripMenuItem_Click(ByVal sender As System.Object, ByVal e As System.EventArgs) Handles OrderIssuedToolStripMenuItem.Click
+        LoadChildForm(frmorder_workerissue)
+    End Sub
+
+Private Sub BinSummaryToolStripMenuItem_Click(ByVal sender As System.Object, ByVal e As System.EventArgs) Handles BinSummaryToolStripMenuItem.Click
+
+
+        LoadChildForm(frmworkerdealerbalance)
+    End Sub

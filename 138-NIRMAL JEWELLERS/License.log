@@ -1,0 +1,32 @@
+    ======  ======
+    Time:17-03-2018 03:03:07
+    Title: Initiate log
+    Message: 
+    Time:17-03-2018 03:03:07
+    Title: Initiate InternalManager
+    Message: Trying to Validate License
+    Time:17-03-2018 03:03:07
+    Title: Requesting EVT
+    Message: EVTP
+    Time:17-03-2018 03:03:07
+    Title: Requesting Validation
+    Message: ILMValidate
+    Time:17-03-2018 03:03:07
+    Title: LICENSER
+    Message: FNF
+    Time:17-03-2018 03:03:10
+    Title: Access to the path 'C:\ProgramData\Telerik\Hash.lic' is denied.
+    Message:    at System.IO.__Error.WinIOError(Int32 errorCode, String maybeFullPath)
+   at System.IO.FileStream.Init(String path, FileMode mode, FileAccess access, Int32 rights, Boolean useRights, FileShare share, Int32 bufferSize, FileOptions options, SECURITY_ATTRIBUTES secAttrs, String msgPath, Boolean bFromProxy, Boolean useLongPath, Boolean checkHost)
+   at System.IO.FileStream..ctor(String path, FileMode mode, FileAccess access, FileShare share)
+   at Telerik.Licensing.Licenser.ReadHashPass()
+    Time:17-03-2018 03:03:10
+    Title: Access to the path 'C:\ProgramData\Telerik\Hash.lic' is denied.
+    Message:    at System.IO.__Error.WinIOError(Int32 errorCode, String maybeFullPath)
+   at System.IO.FileStream.Init(String path, FileMode mode, FileAccess access, Int32 rights, Boolean useRights, FileShare share, Int32 bufferSize, FileOptions options, SECURITY_ATTRIBUTES secAttrs, String msgPath, Boolean bFromProxy, Boolean useLongPath, Boolean checkHost)
+   at System.IO.FileStream..ctor(String path, FileMode mode, FileAccess access, FileShare share)
+   at Telerik.Licensing.Licenser.ReadHashPass()
+    Entering constructor for: Telerik.CommonPackage.Telerik_CommonPackagePackage
+    Entering Initialize() of: Telerik.CommonPackage.Telerik_CommonPackagePackage
+    devenv.exe Information: 0 : 17-03-2018 09:34:53:  - TokenCache: Deserialized 2 items to token cache.
+    devenv.exe Information: 0 : 17-03-2018 09:34:53:  - TokenCache: Deserialized 2 items to token cache.
